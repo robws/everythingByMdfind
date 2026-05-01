@@ -1,0 +1,11 @@
+[project]
+name = "everythingByMdfind"
+version = "1.4.2"
+requires-python = ">=3.10"
+dependencies = [
+    "PyQt6>=6.10.0",
+    "PyQt6-Charts>=6.10.0",
+]
+
+[tool.uv]
+package = false

@@ -17,6 +17,7 @@ import os
 import stat
 import json
 import subprocess
+import fnmatch
 import time
 import csv
 import shutil
@@ -646,6 +647,7 @@ class SearchWorker(QThread):
             self.error_signal.emit(str(e))
             return
 
+        exclude_patterns = read_config().get("exclude_patterns", ["~$*", "*.alias"])
         try:
             while self._is_running:
                 line = self.process.stdout.readline()
@@ -654,13 +656,16 @@ class SearchWorker(QThread):
                 idx += 1
                 path = line.strip()
                 if path:
+                    basename = os.path.basename(path)
+                    if any(fnmatch.fnmatch(basename, pat) for pat in exclude_patterns):
+                        continue
                     try:
                         # Use single os.stat() call instead of multiple os.path calls
                         stat_result = os.stat(path)
                         is_dir = stat.S_ISDIR(stat_result.st_mode)
                         size_ = 0 if is_dir else stat_result.st_size
                         mtime = stat_result.st_mtime
-                        files_info.append((os.path.basename(path), size_, mtime, path))
+                        files_info.append((basename, size_, mtime, path))
                     except (OSError, IOError):
                         # File may have been deleted or is inaccessible
                         continue
