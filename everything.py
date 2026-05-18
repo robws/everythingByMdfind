@@ -617,23 +617,16 @@ class SearchWorker(QThread):
         if self.is_bookmark and self.extra_clause is not None:
             query_str = self.extra_clause
         else:
+            # Normal search behavior
+            full_match_str = "" if self.full_match else "*"
+            case_modifier = "" if self.match_case else "cd"
             if self.search_by_file_name:
-                if self.query:
-                    try:
-                        re.compile(self.query)
-                    except re.error as e:
-                        self.error_signal.emit(f"Invalid regex: {e}")
-                        return
-                    pattern = self.query if self.full_match else f".*{self.query}.*"
-                    query_str = f'kMDItemFSName MATCHES[cd] "{pattern}"'
-                else:
-                    query_str = 'kMDItemFSName MATCHES[cd] ".*"'
+                query_str = f'kMDItemFSName == "{full_match_str}{self.query}{full_match_str}"{case_modifier}'
                 if self.extra_clause is not None:
                     query_str += f" && {self.extra_clause}"
             else:
-                full_match_str = "" if self.full_match else "*"
                 if self.query != "":
-                    query_str = f'kMDItemTextContent == "{full_match_str}{self.query}{full_match_str}"cd'
+                    query_str = f'kMDItemTextContent == "{full_match_str}{self.query}{full_match_str}"{case_modifier}'
                     if self.extra_clause is not None:
                         query_str += f" && {self.extra_clause}"
                 else:
