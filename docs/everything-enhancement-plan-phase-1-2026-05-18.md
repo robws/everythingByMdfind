@@ -30,6 +30,11 @@ Press command-D to put focus in search query
 4. Add Select all button above file results
 5. Remove the FN, AA, and "" buttons in the search query. Search query by default should be filename only and case insensitive if it can be.
 
+### Session and display persistence
+1. Store last search each time search is run in a config file and restore it when the program loads again
+2. If columns are resized, offer to save them on exit. when opening, restore columns to saved sizes.
+
+
 ### Advanced file move
 Press F6 to move selected files; dialog appears with a find-as-you type list of pre-defined folders.
 

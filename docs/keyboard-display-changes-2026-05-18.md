@@ -26,14 +26,14 @@ Prerequisite refactor added here:
 | # | Task | Status |
 |---|------|--------|
 | 0 | Extract `build_tree_item()` helper (prerequisite for column changes) | ⬜ Not started |
-| 1 | Escape to close | ⬜ Not started |
-| 2 | Remove Fn / Aa / `""` toggle buttons; hardcode filename-only, case-insensitive | ⬜ Not started |
+| 1 | Escape to close | ✅ Done |
+| 2 | Remove Fn / Aa / `""` toggle buttons; hardcode filename-only, case-insensitive | ✅ Done |
 | 3 | Column restructure — Name without extension, separate Ext column, Path dir-only | ⬜ Not started |
 | 4 | Move items-found label to above results box | ⬜ Not started |
 | 5 | Suppress tab bar; reuse single tab per search instead of spawning new ones | ⬜ Not started |
 | 6 | Add Select All button above results | ⬜ Not started |
-| 7 | F2 — wire to existing rename dialog | ⬜ Not started |
-| 8 | Cmd-D — focus `edit_query` | ⬜ Not started |
+| 7 | F2 — wire to existing rename dialog | ✅ Done |
+| 8 | Cmd-D — focus `edit_query` | ✅ Done |
 
 ---
 

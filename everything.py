@@ -1137,6 +1137,7 @@ class MdfindApp(QMainWindow):
         # For backward compatibility, also set dark_mode property
         self.dark_mode = self.theme_mode in ["dark", "tokyo_night", "tokyo_night_storm"]
         self.slider_dragging = False  # Initialize slider_dragging attribute
+        self._columns_dirty = False
         self.setWindowTitle("Everything by mdfind")
         size = config.get("window_size", {"width": 1920, "height": 1000})
         self.resize(size["width"], size["height"])
@@ -1293,37 +1294,18 @@ class MdfindApp(QMainWindow):
         
         self.edit_query = QLineEdit()
         self.edit_query.setPlaceholderText("Enter search terms...")
+        last_search = config.get("last_search", "")
+        if last_search:
+            self.edit_query.setText(last_search)
 
         # Create toggle buttons inside the search input (like VS Code)
-        self.chk_file_name = QToolButton()
-        self.chk_file_name.setCheckable(True)
-        self.chk_file_name.setChecked(True)
-        self.chk_file_name.setToolTip("Search by File Name\n(when off: search in file content and metadata)")
-        self.chk_file_name.setText("Fn")
-        self.chk_file_name.setObjectName("searchToggleBtn")
-
-        self.chk_match_case = QToolButton()
-        self.chk_match_case.setCheckable(True)
-        self.chk_match_case.setToolTip("Match Case")
-        self.chk_match_case.setText("Aa")
-        self.chk_match_case.setObjectName("searchToggleBtn")
-
-        self.chk_full_match = QToolButton()
-        self.chk_full_match.setCheckable(True)
-        self.chk_full_match.setToolTip("Full Match")
-        self.chk_full_match.setText('""')
-        self.chk_full_match.setObjectName("searchToggleBtn")
-
-        # Build the search container: QLineEdit + toggle buttons
+        # Build the search container: QLineEdit only (filename-only, case-insensitive is now hardcoded)
         self.search_container = QWidget()
         self.search_container.setObjectName("searchContainer")
         search_container_layout = QHBoxLayout(self.search_container)
         search_container_layout.setContentsMargins(0, 0, 4, 0)
         search_container_layout.setSpacing(2)
         search_container_layout.addWidget(self.edit_query)
-        search_container_layout.addWidget(self.chk_file_name)
-        search_container_layout.addWidget(self.chk_match_case)
-        search_container_layout.addWidget(self.chk_full_match)
 
         # Track focus to style the search container border
         self.edit_query.installEventFilter(self)
@@ -1713,9 +1695,6 @@ class MdfindApp(QMainWindow):
         self.edit_query.returnPressed.connect(self.on_search_enter)
         self.edit_dir.textChanged.connect(self.on_dir_changed)
 
-        self.chk_file_name.toggled.connect(lambda: self.search_timer.start(DEBOUNCE_DELAY))
-        self.chk_match_case.toggled.connect(lambda: self.search_timer.start(DEBOUNCE_DELAY))
-        self.chk_full_match.toggled.connect(lambda: self.search_timer.start(DEBOUNCE_DELAY))
         self.edit_min_size.textChanged.connect(self.on_filter_changed)
         self.edit_max_size.textChanged.connect(self.on_filter_changed)
         self.edit_extension.textChanged.connect(self.on_filter_changed)
@@ -1849,9 +1828,9 @@ class MdfindApp(QMainWindow):
         search_tab = SearchTab(
             query=search_query,
             directory=search_directory,
-            file_name_search=self.chk_file_name.isChecked(),
-            match_case=self.chk_match_case.isChecked(),
-            full_match=self.chk_full_match.isChecked(),
+            file_name_search=True,
+            match_case=False,
+            full_match=False,
             min_size=self.edit_min_size.text().strip(),
             max_size=self.edit_max_size.text().strip(),
             extensions=self.edit_extension.text().strip(),
@@ -1861,6 +1840,15 @@ class MdfindApp(QMainWindow):
             is_scan_tab=is_scan_tab  # Store the original title
         )
         
+        # Restore saved column widths
+        saved_widths = read_config().get("column_widths")
+        if saved_widths and len(saved_widths) == search_tab.tree.columnCount():
+            for i, w in enumerate(saved_widths):
+                search_tab.tree.setColumnWidth(i, w)
+
+        # Track column resize for save-on-exit prompt
+        search_tab.tree.header().sectionResized.connect(self._on_column_resized)
+
         # Apply default sort settings
         search_tab.sort_column = self.default_sort_column
         search_tab.sort_order = self.default_sort_order
@@ -1964,9 +1952,6 @@ class MdfindApp(QMainWindow):
                 # Block signals to avoid triggering new searches when updating UI
                 self.edit_query.blockSignals(True)
                 self.edit_dir.blockSignals(True)
-                self.chk_file_name.blockSignals(True)
-                self.chk_match_case.blockSignals(True)
-                self.chk_full_match.blockSignals(True)
                 self.edit_min_size.blockSignals(True)
                 self.edit_max_size.blockSignals(True)
                 self.edit_extension.blockSignals(True)
@@ -1977,11 +1962,6 @@ class MdfindApp(QMainWindow):
                     
                     # Update the directory input field with the tab's directory
                     self.edit_dir.setText(current_tab.directory)
-                    
-                    # Update the checkboxes with the tab's search parameters
-                    self.chk_file_name.setChecked(current_tab.file_name_search)
-                    self.chk_match_case.setChecked(current_tab.match_case)
-                    self.chk_full_match.setChecked(current_tab.full_match)
                     
                     # Update the filter fields with the tab's filter parameters
                     self.edit_min_size.setText(current_tab.min_size)
@@ -1994,9 +1974,6 @@ class MdfindApp(QMainWindow):
                     # Re-enable signals
                     self.edit_query.blockSignals(False)
                     self.edit_dir.blockSignals(False)
-                    self.chk_file_name.blockSignals(False)
-                    self.chk_match_case.blockSignals(False)
-                    self.chk_full_match.blockSignals(False)
                     self.edit_min_size.blockSignals(False)
                     self.edit_max_size.blockSignals(False)
                     self.edit_extension.blockSignals(False)
@@ -2689,6 +2666,11 @@ class MdfindApp(QMainWindow):
         if not is_bookmark and not query and extra_clause is None:
             return
 
+        if not is_bookmark and query:
+            cfg = read_config()
+            cfg["last_search"] = query
+            write_config(cfg)
+
         # Create a new tab for this search
         search_tab = self.create_new_tab(query, directory, tab_title, extra_clause, is_bookmark)
         
@@ -2700,9 +2682,9 @@ class MdfindApp(QMainWindow):
         # Create new search worker
         search_tab.search_worker = SearchWorker(
             query, directory,
-            self.chk_file_name.isChecked(),
-            self.chk_match_case.isChecked(),
-            self.chk_full_match.isChecked(),
+            True,
+            False,
+            False,
             extra_clause,  # Pass extra clause if provided
             is_bookmark    # Pass the bookmark flag
         )
@@ -3711,19 +3693,20 @@ class MdfindApp(QMainWindow):
             return
         directory = os.path.dirname(path)
         old_name = os.path.basename(path)
-        
-        # Create input dialog and apply theme
+        base_name, ext = os.path.splitext(old_name)
+
         input_dialog = QInputDialog(self)
         input_dialog.setWindowTitle("✏️ Rename File")
-        input_dialog.setLabelText(f"Enter new name for {old_name}:")
-        input_dialog.setTextValue(old_name)
+        input_dialog.setLabelText(f'Rename "{base_name}":')
+        input_dialog.setTextValue(base_name)
         input_dialog.setInputMode(QInputDialog.InputMode.TextInput)
         self.apply_dialog_dark_mode(input_dialog)
-        
+
         ok = input_dialog.exec()
-        new_name = input_dialog.textValue()
-        
-        if ok and new_name:
+        new_base = input_dialog.textValue().strip()
+
+        if ok and new_base:
+            new_name = new_base + ext
             new_full_path = os.path.join(directory, new_name)
             try:
                 os.rename(path, new_full_path)
@@ -3731,12 +3714,11 @@ class MdfindApp(QMainWindow):
                 if tree:
                     current_item = tree.currentItem()
                     if current_item:
-                        # Update display name with emoji
-                        _, ext = os.path.splitext(new_name.lower())
+                        _, new_ext = os.path.splitext(new_name.lower())
                         if os.path.isdir(new_full_path):
                             display_name = f"📁 {new_name}"
                         else:
-                            display_name = f"{self.extension_emoji_map.get(ext, '📄')} {new_name}"
+                            display_name = f"{self.extension_emoji_map.get(new_ext, '📄')} {new_name}"
                         current_item.setText(0, display_name)
                         current_item.setText(3, new_full_path)
                 self.show_info("✅ Success", "File renamed successfully.")
@@ -5706,6 +5688,21 @@ class MdfindApp(QMainWindow):
             try:
                 config = read_config()
                 config["window_size"] = {"width": self.width(), "height": self.height()}
+
+                if self._columns_dirty:
+                    reply = QMessageBox.question(
+                        self, "Save Column Widths",
+                        "Column widths changed. Save for next session?",
+                        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                        QMessageBox.StandardButton.Yes,
+                    )
+                    if reply == QMessageBox.StandardButton.Yes:
+                        tab = self.get_current_tab()
+                        if tab:
+                            config["column_widths"] = [
+                                tab.tree.columnWidth(i) for i in range(tab.tree.columnCount())
+                            ]
+
                 write_config(config)
             except Exception as cfg_exc:
                 print(f"Failed to save window size: {cfg_exc}")
@@ -5952,6 +5949,20 @@ class MdfindApp(QMainWindow):
                 return
             
             next_index += 1
+
+    def _on_column_resized(self, _logical, _old, _new):
+        self._columns_dirty = True
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key.Key_Escape:
+            self.close()
+        elif event.key() == Qt.Key.Key_F2:
+            self.rename_file()
+        elif event.key() == Qt.Key.Key_D and event.modifiers() == Qt.KeyboardModifier.MetaModifier:
+            self.edit_query.setFocus()
+            self.edit_query.selectAll()
+        else:
+            super().keyPressEvent(event)
 
     def eventFilter(self, obj, event):
         if obj == self.edit_query:
