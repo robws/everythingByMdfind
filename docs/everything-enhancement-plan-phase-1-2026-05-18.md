@@ -7,6 +7,14 @@ date: 2026-05-18
 
 Add features to the everything fork, as described in tasks, to make everything capable of advanced renaming, filtering, and moving.
 
+## Active working plans
+
+| Segment | Working plan file |
+|---------|-------------------|
+| Keyboard changes + display changes | [keyboard-display-changes-2026-05-18.md](keyboard-display-changes-2026-05-18.md) |
+
+---
+
 ## Features/tasks
 
 ### Keyboard changes
